@@ -1,151 +1,107 @@
-# imports
-import os 
-from io import BytesIO
 import streamlit as st
-import pandas as pd
-from mistralai import Mistral
+from google import genai
 from dotenv import load_dotenv
+import os
 
+# Load the environment variables
 load_dotenv()
-
-# set up of my app
-st.set_page_config(page_title='Data Sweeper', layout='wide')
-
-data = {
-    "Name":['luffy','cr7','claudie'],
-    "Age":[17,None,56]
+# Dictionary of unit categories with their units
+unitCategories = {
+    "Area": [
+        "Square Meter (m²)", "Square Kilometer (km²)", "Square Centimeter (cm²)",
+        "Square Millimeter (mm²)", "Square Micrometer (µm²)", "Hectare (ha)",
+        "Acre (ac)", "Square Mile (mi²)", "Square Yard (yd²)", "Square Foot (ft²)", "Square Inch (in²)"
+    ],
+    "Data Transfer Rate": [
+        "Bits per second (bps)", "Kilobits per second (Kbps)", "Megabits per second (Mbps)", 
+        "Gigabits per second (Gbps)", "Terabits per second (Tbps)", "Bytes per second (Bps)", 
+        "Kilobytes per second (KBps)", "Megabytes per second (MBps)", "Gigabytes per second (GBps)"
+    ],
+    "Digital Storage": [
+        "Bit (b)", "Byte (B)", "Kilobit (Kb)", "Kilobyte (KB)", "Megabit (Mb)", "Megabyte (MB)",
+        "Gigabit (Gb)", "Gigabyte (GB)", "Terabit (Tb)", "Terabyte (TB)", "Petabyte (PB)", "Exabyte (EB)"
+    ],
+    "Energy": [
+        "Joule (J)", "Kilojoule (kJ)", "Megajoule (MJ)", "Calorie (cal)", "Kilocalorie (kcal)", 
+        "Electronvolt (eV)", "Watt-hour (Wh)", "Kilowatt-hour (kWh)", "Megawatt-hour (MWh)", 
+        "British Thermal Unit (BTU)", "Foot-pound (ft⋅lb)", "Erg"
+    ],
+    "Frequency": [
+        "Hertz (Hz)", "Kilohertz (kHz)", "Megahertz (MHz)", "Gigahertz (GHz)", "Terahertz (THz)", "Revolutions per Minute (RPM)"
+    ],
+    "Fuel Economy": [
+        "Kilometers per liter (km/L)", "Miles per gallon (mpg US)", "Miles per gallon (mpg UK)", 
+        "Liters per 100 kilometers (L/100km)", "Gallons per mile (gal/mi)"
+    ],
+    "Length": [
+        "Meter (m)", "Kilometer (km)", "Decimeter (dm)", "Centimeter (cm)", "Millimeter (mm)", 
+        "Micrometer (µm)", "Nanometer (nm)", "Mile (mi)", "Yard (yd)", "Foot (ft)", "Inch (in)", 
+        "Nautical Mile (nmi)", "Light-Year", "Parsec (pc)", "Astronomical Unit (AU)"
+    ],
+    "Mass": [
+        "Kilogram (kg)", "Gram (g)", "Milligram (mg)", "Microgram (µg)", "Ton (t)", 
+        "Long Ton (UK)", "Short Ton (US)", "Pound (lb)", "Ounce (oz)", "Stone (st)", 
+        "Carat (ct)", "Atomic Mass Unit (u)"
+    ],
+    "Plane Angle": [
+        "Degree (°)", "Radian (rad)", "Gradian (gon)", "Minute of Arc (′)", "Second of Arc (″)", "Milliradian (mrad)"
+    ],
+    "Pressure": [
+        "Pascal (Pa)", "Kilopascal (kPa)", "Hectopascal (hPa)", "Bar", "Millibar (mbar)", 
+        "Atmosphere (atm)", "Torr (mmHg)", "Pound per square inch (psi)", "Megapascal (MPa)"
+    ],
+    "Speed": [
+        "Meters per second (m/s)", "Kilometers per hour (km/h)", "Miles per hour (mph)", 
+        "Feet per second (ft/s)", "Knots (kn)", "Mach (M)", "Speed of Light (c)"
+    ],
+    "Temperature": [
+        "Celsius (°C)", "Fahrenheit (°F)", "Kelvin (K)", "Rankine (°R)", "Delisle (°D)", 
+        "Newton (°N)", "Réaumur (°Ré)", "Rømer (°Rø)"
+    ],
+    "Time": [
+        "Second (s)", "Millisecond (ms)", "Microsecond (µs)", "Nanosecond (ns)", 
+        "Minute (min)", "Hour (h)", "Day (d)", "Week (wk)", "Month", "Year (yr)", 
+        "Decade", "Century", "Millennium", "Planck Time"
+    ],
+    "Volume": [
+        "Cubic Meter (m³)", "Cubic Centimeter (cm³)", "Liter (L)", "Milliliter (mL)", 
+        "Cubic Foot (ft³)", "Cubic Inch (in³)", "Cubic Yard (yd³)", "Cup", "Pint (US)", 
+        "Pint (UK)", "Quart (US)", "Quart (UK)", "Gallon (US)", "Gallon (UK)", "Barrel (Oil)"
+    ]
 }
+# page configuration
+st.set_page_config(page_title="Unit Converter", page_icon="📏",layout='centered')
+# toast
+# title of the app
+st.title("Distance Converter 🎍")
+# category selection 
+unitCategory = st.selectbox("Select the unit category 🥓", list(unitCategories.keys()))
+# 2 cols for both unit
+col1,col2 = st.columns(2)
+with col1:
+    # slect initial unit
+    initialUnit = st.selectbox("Select the initial unit ✨", unitCategories[unitCategory])
+with col2:
+    # select final unit
+    finalUnit = st.selectbox("Select the final Unit 🎋", unitCategories[unitCategory])
 
-df0 = pd.DataFrame(data)
-csv = df0.to_csv(index=False)
-# Mark down
-st.title('Data Sweeper ❄')
-st.download_button(
-    label='Want a dummy file? 🎇',
-    data=csv,
-    file_name='people.csv',
-    mime='text/csv'
-)
-st.write('Transform your files between CSV and Excel formats with built-in data cleaning and visualization 🍁')
+# input value
+initialValue = st.number_input("Enter the initial value 🎑", value=0.0)
 
-# file uploader
-upload_files = st.file_uploader(
-    'Upload your files (CSV or Excel):' , 
-      type=['csv','xlsx'],
-      accept_multiple_files=True
-      )
-
-# if files are true run a loop
-if upload_files:
-    for file in upload_files:
-        # gets extension
-        file_ext = os.path.splitext(file.name)[-1].lower()
-        
-        # checks for extension
-        
-        # if extension is .csv
-        if file_ext == ".csv":
-            # then the dataframe will be
-            df = pd.read_csv(file)
-            
-        # if extension is .xlsx
-        elif file_ext == ".xlsx":
-            # then the dataframe will be
-            df = pd.read_excel(file)
-            
-        #  if extension is not .cv or .xlsx ( "basically an unsupported file" )
-        else: 
-            #  then throw an error of 'Unsupported file type : {file_ext e.g png jpeg pdf}'
-            st.error(f"Unsupported file type: {file_ext}")
-            # then continue ( this continue means the loop continues toward the next file)
-            continue
-        
-        
-        # file info
-        st.write(f"**File Name:** {file.name}")
-        st.write(f"**File Size:** {file.size / 1_048_576:.6f} MB")
-
-        # show 5 rows of our df
-        st.write("Preview the head of Dataframe")
-        # head from pd returns 5 rows from the top
-        st.dataframe(df.head())
-        
-        st.subheader('Data Cleaning Options')
-        if st.checkbox(f"Clean Data for {file.name}"):
-            
-            # makes 2 columns in UI
-            col1,col2 = st.columns(2)
-            
-            with col1:   # Using "with" ensures everything inside this block belongs to col1
-                if st.button(f"Remove Duplicates from {file.name}"):
-                    df.drop_duplicates(inplace=(True))
-                    st.write("Duplicates removed")
-                    #  then automatically closes it
-                    
-            with col2:   # Using "with" ensures everything inside this block belongs to col2
-                if st.button(f"Fill missing values for {file.name}"):
-                    numeric_cols = df.select_dtypes(include=['number']).columns # select numeric cols only
-                    df[numeric_cols]= df[numeric_cols].fillna(df[numeric_cols].mean()) # Replace missing values (NaN) in all numeric columns with their respective column mean
-                    st.write("missing values have been filled")
-                    #  then automatically closes it
-                    
-        # choose specific columns to keep or convert
-        st.subheader("Select columns to convert")
-        columns = st.multiselect(f"Choose Columns for {file.name}", df.columns, default=df.columns ) # choose the cols from drop down and chooses all columns by default 
-        df = df[columns]
-        
-        # create a visualization
-        st.subheader('Data Visulization 📉')
-        if st.checkbox(f"Show Visualization for {file.name}"):
-            st.bar_chart(df.select_dtypes(include='number').iloc[:,:2])
-        
-        st.subheader('Generate a summary 🍂')
-        
-        if st.button(f'Generate summary about {file.name}'):
-            api_key = os.getenv('api_key')
-            model = 'mistral-large-latest'
-            
-            client = Mistral(api_key=api_key)
-            
-            chat_response = client.chat.complete(
-                model=model,
-                messages= [
-                    {
-                        "role":'user',
-                        "content": f"Give a fun yet professional summary of '{file.name}' in 4-5 lines. Keep it simple, avoid fancy words, and make it engaging with emojis. Use bullet points to highlight key stats. No bold text, just keep it clean and easy to read. Here’s the data: {df}"
-  }
-                ]
-            )
-            
-            st.text(chat_response.choices[0].message.content)
-        # conversion option
-        st.subheader('Conversion Options 🔃')
-        
-        conversion_type = st.radio(f"Convert {file.name} to:",["CSV","EXCEL"],key=file.name)
-        
-        # This line creates an in-memory buffer using BytesIO
-        buffer = BytesIO() # Think of it as a temporary file that exists in RAM instead of on disk.
-        if conversion_type == "CSV":
-            df.to_csv(buffer,index=False)
-            file_name = file.name.replace(file_ext,".csv") # replace the extension
-            mime_type= "text/csv" # MIME type of the file, used to identify its format (e.g., 'image/png', 'application/pdf')
-            
-        elif conversion_type == "EXCEL":
-            df.to_excel(buffer,index=False, engine="openpyxl")
-            file_name = file.name.replace(file_ext,".xlsx") # replace the extension
-            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" # MIME type of the file, used to identify its format (e.g., 'image/png', 'application/pdf')
-            
-        buffer.seek(0)
-
-        st.subheader(f"Download {file.name} as {conversion_type} 🌊")
-        # download button
-        if st.download_button(
-        label=f"⬇️ Download {file.name} as {conversion_type}", 
-        data=buffer,
-        file_name=file_name,
-        mime=mime_type
-        ):
-            st.toast("🎉 Boom! File Downloaded Successfully!", icon="🎇")
-            st.balloons()
-            
-        st.snow()  
+# convert button   
+if st.button("Convert"):
+    # get the key
+    api_key = os.getenv("api_key")
+    # makes the client
+    client = genai.Client(api_key=api_key)
+    # response
+    response = client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=f'''Convert {initialValue} {initialUnit} to {finalUnit}. Only return the numeric value followed by the unit. No explanations, no extra text.
+        If the input is invalid, respond with: 'Oops, it's a string! Are you from Mars? 👽 and be creative with all errors but it should be one lineror less'''
+    )
+    # display the response
+    st.subheader(response.text)
+    st.balloons()
+    st.toast('Conversion Successful! 🎉', icon="🎉")
+st.snow()
